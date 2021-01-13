@@ -48,7 +48,7 @@ This is basically like the SIR model in the Julia course, but with two kinds of 
 
 # ╔═╡ ea6e5730-5587-11eb-1040-39f09e0a5046
 begin
-	mutable struct Coordinate
+	struct Coordinate
 		x :: Int64
 		y :: Int64
 	end
@@ -120,26 +120,36 @@ end
 
 # ╔═╡ 67ab912a-5599-11eb-17e3-db01fe39efa6
 begin 
-	function move!(agent :: Species, boundary_condition! :: Function, L)
+	function move!(agent :: Species, boundary_condition :: Function, L)
 		if rand() < agent.D
-			agent.position += rand(possible_moves)
-			boundary_condition!(agent.position, L)
+			new_position = agent.position + rand(possible_moves)
+			agent.position = boundary_condition(agent.position, L)
 		end
 	end
 	
-	function mirror_boundary!(position :: Coordinate, L)
-		for axis in [:x, :y]
-			value = getproperty(position, axis)
-			
-			if value < -L
-				newvalue = -L + (-L - value)
-				setproperty!(position, axis, newvalue)
-			elseif value > L 
-				newvalue = L - (value - L)
-				setproperty!(position, axis, newvalue)
-			end
+	function mirror_boundary(position :: Coordinate, L)
+		
+		if abs(position.x) < L & abs(position.y) < L
+			return position
 		end
+		
+		x = mirror(position.x, L)
+		y = mirror(position.y, L)
+		
+		Coordinate(x, y)
 	end
+		
+	function mirror(value, L)
+		if value > L
+			return L - (value - L)
+		elseif value < -L
+			return -L + (-L - value)
+		end
+
+		value
+	end
+				
+		
 	
 	interact!(source :: Species, target :: Species) = Nothing
 	
@@ -183,7 +193,7 @@ end
 begin
 	function step!(simulation :: Simulation)
 
-		move!.(simulation.agents, mirror_boundary!, simulation.L)
+		move!.(simulation.agents, mirror_boundary, simulation.L)
 
 		for source in simulation.agents, target in simulation.agents
 			interact!(source, target)
@@ -212,9 +222,6 @@ begin
 end
 	
 
-# ╔═╡ 6bcbdb42-55a9-11eb-1799-3b3b70a1be6b
-visualize(s)
-
 # ╔═╡ 943c89ae-55a5-11eb-1931-b72c257db055
 begin
 	a = Substrate(1., Coordinate(19, 19), A)
@@ -222,12 +229,12 @@ begin
 	
 	interact!(e, a)
 	
-	position(a) == position(e)
+	a
 end
 
 
 # ╔═╡ 84d1ff4a-55ae-11eb-3431-6f7db13d4fe7
-@code_lowered Coordinate(19, 19) == Coordinate(19, 19)
+Coordinate(19, 19) == Coordinate(19, 19)
 
 # ╔═╡ 8261fc06-55ae-11eb-2be3-1f04d18f9165
 
@@ -284,7 +291,6 @@ md"# Additional references
 # ╠═a15b7a18-5597-11eb-2fdd-152922c6a236
 # ╠═67ab912a-5599-11eb-17e3-db01fe39efa6
 # ╠═6e716402-55a9-11eb-1654-7d18b796097b
-# ╠═6bcbdb42-55a9-11eb-1799-3b3b70a1be6b
 # ╠═dacf441e-55ab-11eb-182f-1b3924129fe2
 # ╠═5c279db4-55a6-11eb-142f-c70ad5a29aef
 # ╠═943c89ae-55a5-11eb-1931-b72c257db055
