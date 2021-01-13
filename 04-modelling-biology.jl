@@ -15,8 +15,8 @@ end
 
 # ╔═╡ 986904d4-55ab-11eb-1ef0-4360274aa96c
 begin
-	using Plots
 	using BenchmarkTools
+	using Plots
 	using PlutoUI
 	using Pipe
 end
@@ -255,7 +255,7 @@ function run_n(n :: Integer, n_steps, D :: AbstractFloat, enzymes :: Number, sub
 	
 	results = Array{Simulation, 2}(undef, (n_steps, n))
 	
-	for i in 1:n
+	Threads.@threads for i in 1:n
 		s = Simulation(D, enzymes, substrates, L)
 		this_one = run!(s, n_steps, 1)
 		
@@ -265,7 +265,7 @@ function run_n(n :: Integer, n_steps, D :: AbstractFloat, enzymes :: Number, sub
 end
 
 # ╔═╡ dfebfbe0-55c9-11eb-2791-a578271fbcf5
-md"Would you like to run many simulations? It takes a while $(@bind run_many CheckBox())"
+md"Would you like to run $(@bind how_many Slider(4:4:48, show_value=true, default=8)) simulations? It takes a while $(@bind run_many CheckBox())"
 
 # ╔═╡ 87df4954-55b6-11eb-1703-f93170ccdfdc
 function fraction_B(simulation :: Simulation)
@@ -274,15 +274,14 @@ end
 
 # ╔═╡ 97195298-55c7-11eb-307f-cfdebaf1190c
 begin
-	test = run_n(10, 20000, 0.2, 3, 200, 20)
-	
-	data = fraction_B.(test)
-	p = plot(data, alpha=.5, legend=false)
-	plot!(mean.(eachrow(data)), linewidth=3)
-end
+	if run_many
+		test = run_n(how_many, 20000, 0.2, 3, 200, 20)
 
-# ╔═╡ d8ac9566-55c8-11eb-123d-fdb5e4baf4d6
-mean.(eachrow(fraction_B.(test)))
+		data = fraction_B.(test)
+		p = plot(data, alpha=.5, legend=false)
+		plot!(mean.(eachrow(data)), linewidth=3)
+	end
+end
 
 # ╔═╡ 745e95aa-55b9-11eb-2537-252476fe9e50
 md"Would you like to make an animation? It takes a while $(@bind animate CheckBox())"
@@ -325,10 +324,9 @@ md"# Additional references
 # ╠═b0aa6d80-55b5-11eb-37a7-add5447a71b5
 # ╠═5a6cf3b8-55b8-11eb-12c7-05752389d032
 # ╠═23b7dc8a-55c6-11eb-0ff5-a704c61ac771
-# ╠═dfebfbe0-55c9-11eb-2791-a578271fbcf5
+# ╟─dfebfbe0-55c9-11eb-2791-a578271fbcf5
 # ╠═97195298-55c7-11eb-307f-cfdebaf1190c
-# ╠═d8ac9566-55c8-11eb-123d-fdb5e4baf4d6
 # ╟─87df4954-55b6-11eb-1703-f93170ccdfdc
-# ╠═745e95aa-55b9-11eb-2537-252476fe9e50
+# ╟─745e95aa-55b9-11eb-2537-252476fe9e50
 # ╠═2d62d01e-55b7-11eb-0143-85acc8244b8b
 # ╟─9ae8fd58-557a-11eb-3371-918f50f832fb
