@@ -4,9 +4,21 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : missing
+        el
+    end
+end
+
 # ╔═╡ 986904d4-55ab-11eb-1ef0-4360274aa96c
 begin
 	using Plots
+	using BenchmarkTools
+	using PlutoUI
+	using Pipe
 end
 
 # ╔═╡ b71b20ca-5578-11eb-34bc-c5741fed7dd6
@@ -123,7 +135,7 @@ begin
 	function move!(agent :: Species, boundary_condition :: Function, L)
 		if rand() < agent.D
 			new_position = agent.position + rand(possible_moves)
-			agent.position = boundary_condition(agent.position, L)
+			agent.position = boundary_condition(new_position, L)
 		end
 	end
 	
@@ -183,7 +195,8 @@ function visualize(simulation :: Simulation)
 	
 	p = plot(ratio=1, 
 		     xlims=(-simulation.L - 1, simulation.L + 1), 
-		     ylims=(-simulation.L - 1, simulation.L + 1))
+		     ylims=(-simulation.L - 1, simulation.L + 1), 
+			 legend=false)
 		
 	scatter!(p, make_tuple.(position.(simulation.agents)), c=color.(simulation.agents), markersize= size.(simulation.agents) .* 3)
 				
@@ -202,19 +215,28 @@ begin
 
 	function run!(simulation :: Simulation, steps :: Integer, checkpoints :: Integer)
 		
+		diagnostics = Vector{Simulation}(undef, steps ÷ checkpoints)
+		
 		for i in 1:steps
+			if i % checkpoints == 0
+				diagnostics[i ÷ checkpoints] = deepcopy(simulation)
+			end
+
 			step!(simulation)
 		end
 			
+		diagnostics
 	end
 end
 
 # ╔═╡ 5c279db4-55a6-11eb-142f-c70ad5a29aef
 begin
-	s = Simulation(0.2, 3, 50, 10)
+	n_steps = 10000
+	s = Simulation(0.2, 3, 200, 20)
 	p1 = visualize(s)
 	
-	run!(s, 10000, 100)
+	results = run!(s, 10000, 1)
+	
 	
 	p2 = visualize(s)
 	
@@ -222,49 +244,56 @@ begin
 end
 	
 
-# ╔═╡ 943c89ae-55a5-11eb-1931-b72c257db055
-begin
-	a = Substrate(1., Coordinate(19, 19), A)
-	e = Enzyme(1., Coordinate(19, 19))
+# ╔═╡ b0aa6d80-55b5-11eb-37a7-add5447a71b5
+@bind i Slider(1:length(results), show_value=true)
+
+# ╔═╡ 5a6cf3b8-55b8-11eb-12c7-05752389d032
+visualize(results[i])
+
+# ╔═╡ 23b7dc8a-55c6-11eb-0ff5-a704c61ac771
+function run_n(n :: Integer, n_steps, D :: AbstractFloat, enzymes :: Number, substrates :: Number, L :: Number)
 	
-	interact!(e, a)
+	results = Array{Simulation, 2}(undef, (n_steps, n))
 	
-	a
+	for i in 1:n
+		s = Simulation(D, enzymes, substrates, L)
+		this_one = run!(s, n_steps, 1)
+		
+		results[:, i] = this_one
+	end
+	results
 end
 
+# ╔═╡ dfebfbe0-55c9-11eb-2791-a578271fbcf5
+md"Would you like to run many simulations? It takes a while $(@bind run_many CheckBox())"
 
-# ╔═╡ 84d1ff4a-55ae-11eb-3431-6f7db13d4fe7
-Coordinate(19, 19) == Coordinate(19, 19)
+# ╔═╡ 87df4954-55b6-11eb-1703-f93170ccdfdc
+function fraction_B(simulation :: Simulation)
+	mean(@pipe simulation.agents |> filter(a -> isa(a, Substrate), _) |> map(s -> s.state == B ? 1 : 0, _))
+end
 
-# ╔═╡ 8261fc06-55ae-11eb-2be3-1f04d18f9165
+# ╔═╡ 97195298-55c7-11eb-307f-cfdebaf1190c
+begin
+	test = run_n(10, 20000, 0.2, 3, 200, 20)
+	
+	data = fraction_B.(test)
+	p = plot(data, alpha=.5, legend=false)
+	plot!(mean.(eachrow(data)), linewidth=3)
+end
 
+# ╔═╡ d8ac9566-55c8-11eb-123d-fdb5e4baf4d6
+mean.(eachrow(fraction_B.(test)))
 
-# ╔═╡ 2e8c6f44-55ae-11eb-12dd-89b91d25baa0
+# ╔═╡ 745e95aa-55b9-11eb-2537-252476fe9e50
+md"Would you like to make an animation? It takes a while $(@bind animate CheckBox())"
 
-
-# ╔═╡ 113052c2-55a5-11eb-0dfc-054af6f23217
-
-
-# ╔═╡ 0e72a04c-55a5-11eb-26a6-0986b84902cb
-
-
-# ╔═╡ f8d51cf6-55a4-11eb-24b0-ef882d9b44b2
-
-
-# ╔═╡ a3367922-5598-11eb-320d-6726d6db6473
-
-
-# ╔═╡ a847e836-5595-11eb-2592-d9bd9484b24f
-
-
-# ╔═╡ 66a1cf04-5587-11eb-1729-edfff1049533
-
-
-# ╔═╡ 66868d98-5587-11eb-31f9-8944f20da71b
-
-
-# ╔═╡ 66699104-5587-11eb-3427-791c37ab512d
-
+# ╔═╡ 2d62d01e-55b7-11eb-0143-85acc8244b8b
+begin
+	if animate
+		animation = @animate for sim in results visualize(sim) end
+		gif(animation, "anim_fps30.gif", fps = 24)
+	end
+end
 
 # ╔═╡ 9ae8fd58-557a-11eb-3371-918f50f832fb
 md"# Additional references
@@ -293,16 +322,13 @@ md"# Additional references
 # ╠═6e716402-55a9-11eb-1654-7d18b796097b
 # ╠═dacf441e-55ab-11eb-182f-1b3924129fe2
 # ╠═5c279db4-55a6-11eb-142f-c70ad5a29aef
-# ╠═943c89ae-55a5-11eb-1931-b72c257db055
-# ╠═84d1ff4a-55ae-11eb-3431-6f7db13d4fe7
-# ╠═8261fc06-55ae-11eb-2be3-1f04d18f9165
-# ╠═2e8c6f44-55ae-11eb-12dd-89b91d25baa0
-# ╠═113052c2-55a5-11eb-0dfc-054af6f23217
-# ╠═0e72a04c-55a5-11eb-26a6-0986b84902cb
-# ╠═f8d51cf6-55a4-11eb-24b0-ef882d9b44b2
-# ╠═a3367922-5598-11eb-320d-6726d6db6473
-# ╠═a847e836-5595-11eb-2592-d9bd9484b24f
-# ╠═66a1cf04-5587-11eb-1729-edfff1049533
-# ╠═66868d98-5587-11eb-31f9-8944f20da71b
-# ╠═66699104-5587-11eb-3427-791c37ab512d
-# ╠═9ae8fd58-557a-11eb-3371-918f50f832fb
+# ╠═b0aa6d80-55b5-11eb-37a7-add5447a71b5
+# ╠═5a6cf3b8-55b8-11eb-12c7-05752389d032
+# ╠═23b7dc8a-55c6-11eb-0ff5-a704c61ac771
+# ╠═dfebfbe0-55c9-11eb-2791-a578271fbcf5
+# ╠═97195298-55c7-11eb-307f-cfdebaf1190c
+# ╠═d8ac9566-55c8-11eb-123d-fdb5e4baf4d6
+# ╟─87df4954-55b6-11eb-1703-f93170ccdfdc
+# ╠═745e95aa-55b9-11eb-2537-252476fe9e50
+# ╠═2d62d01e-55b7-11eb-0143-85acc8244b8b
+# ╟─9ae8fd58-557a-11eb-3371-918f50f832fb
